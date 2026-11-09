@@ -1,0 +1,100 @@
+name: Record
+
+# Every hour, one game with plain Essential signs in with the test account and records what Essential's servers send
+# (recorder/). Then:
+# - new cosmetic ids it saw go into cosmetics.json on main, which the Prometheus patch downloads at startup;
+# - the recording (cosmetics only, the account's own data replaced, checked by scripts/check_recording.py) and
+#   cm-replay go to the snapshot branch, which the essential repo's CI replays to every target.
+#
+# Only main runs here: no pull_request trigger, and the token's environment (verity-account, deployment branches:
+# main) refuses any other ref. So the only code that ever runs next to the token is code already merged here.
+
+on:
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore: ["**.md", LICENSE]
+
+permissions:
+  contents: read
+
+# One at a time; a queued run waits instead of cancelling the one that's signed in.
+concurrency:
+  group: record
+  cancel-in-progress: false
+
+jobs:
+  record:
+    name: Record
+    runs-on: ubuntu-latest
+    environment: verity-account
+    timeout-minutes: 40
+    # Commits cosmetics.json and pushes the snapshot branch.
+    permissions:
+      contents: write
+    steps:
+      # No credentials in .git/config: the game runs in this workspace. The pushes below pass the token themselves.
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Fetch the latest Essential
+        run: |
+          version="$(scripts/latest-essential.sh)"
+          echo "ESSENTIAL_VERSION=$version" >> "$GITHUB_ENV"
+          scripts/fetch-essential.sh "$version"
+          jq --arg v "$version" '(.mods[] | select(.modrinth == "essential")).version = $v' verity-record.json > profile.json
+          mv profile.json verity-record.json
+      - name: Build and unit test
+        run: mvn -B package
+      - name: Record
+        uses: prometheusreengineering/verity@v1
+        env:
+          VERITY_MSA_REFRESH_TOKEN: ${{ secrets.VERITY_MSA_REFRESH_TOKEN }}
+        with:
+          profile: verity-record.json
+          report-dir: record-report
+      - name: Check the recording
+        run: |
+          cp record-report/targets/*/attachments/recording.jsonl recording.jsonl
+          python3 scripts/check_recording.py recording.jsonl
+      - name: Add new cosmetics to cosmetics.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # On top of main as it is now (a commit may have landed during the run), without this run's profile edit.
+          git checkout -q -- verity-record.json
+          git fetch -q origin main
+          git checkout -q -B main origin/main
+          new="$(python3 scripts/harvest.py recording.jsonl cosmetics.json)"
+          if [ -z "$new" ]; then echo "No new cosmetics."; exit 0; fi
+          echo "$new"
+          { echo "### New cosmetics"; echo '```'; echo "$new"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -q -m "cosmetics: add $(echo "$new" | wc -l) seen in the store" -m "$new" cosmetics.json
+          git push -q "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main
+      - name: Publish the snapshot
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          dir="$(mktemp -d)"
+          cp recording.jsonl cm-replay/target/cm-replay.jar "$dir"/
+          jq -n --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg run "$RUN_URL" --arg essential "$ESSENTIAL_VERSION" \
+            --arg commit "$(git rev-parse HEAD)" --argjson protocol "$(head -1 recording.jsonl | jq .version)" \
+            '{recordedAt: $at, essential: $essential, protocol: $protocol, run: $run, dataCommit: $commit}' > "$dir/manifest.json"
+          cat "$dir/manifest.json"
+          cd "$dir"
+          git init -q -b snapshot
+          git add .
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -q -m "snapshot of $(jq -r .recordedAt manifest.json)"
+          # One commit, replaced each time: readers see the old files or the new ones, never a gap, and no history
+          # piles up.
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" snapshot

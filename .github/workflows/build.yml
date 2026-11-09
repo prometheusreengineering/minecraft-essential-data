@@ -1,0 +1,31 @@
+name: Build
+
+# Builds and unit-tests the recorder and cm-replay against the latest Essential. No secrets, no environment and no
+# game, so pull requests (forks too) need no approval. Recording happens only in record.yml, on main.
+
+on:
+  push:
+    paths-ignore: ["**.md", LICENSE]
+  pull_request:
+    paths-ignore: ["**.md", LICENSE]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Fetch the latest Essential (compile-time only)
+        run: scripts/fetch-essential.sh
+      - name: Build and unit test
+        run: mvn -B package

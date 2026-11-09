@@ -1,0 +1,13 @@
+target/
+dependency-reduced-pom.xml
+.idea/
+*.iml
+**/.DS_Store
+
+# Essential's jar (scripts/fetch-essential.sh); not redistributed
+lib/
+
+# Verity reports
+verity-report/
+record-report/
+recording.jsonl

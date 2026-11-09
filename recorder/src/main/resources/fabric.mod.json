@@ -1,0 +1,21 @@
+{
+    "schemaVersion": 1,
+    "id": "prometheus_essential_recorder",
+    "version": "1.0.0",
+    "environment": "client",
+    "name": "Prometheus Essential recorder",
+    "description": "CI only: records plain Essential's cosmetics session for cm-replay. Does nothing unless Verity launched the game.",
+    "license": "GPL-3.0",
+    "contact": {
+        "sources": "https://github.com/prometheusreengineering/minecraft-essential-data"
+    },
+    "entrypoints": {
+        "preLaunch": [
+            "studio.dreamys.prometheus.essential.recorder.RecorderFabric"
+        ]
+    },
+    "depends": {
+        "minecraft": "*",
+        "essential-loader": "*"
+    }
+}

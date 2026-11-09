@@ -1,0 +1,16 @@
+{
+  "name": "essential-data-record",
+  "description": "Plain Essential (no Prometheus patch) signed in with the test account (VERITY_MSA_REFRESH_TOKEN), plus the recorder mod, which asks for every cosmetic in cosmetics.json and attaches the filtered, neutralized session as recording.jsonl. The Essential version is the latest release, written in by the record workflow (scripts/latest-essential.sh); the one here is only for local runs.",
+  "targets": [
+    { "minecraft": "1.20.1", "loader": "fabric" }
+  ],
+  "mods": [
+    { "path": "recorder/target/recorder.jar" },
+    { "modrinth": "essential", "version": "1.5.2" }
+  ],
+  "account": { "type": "msa" },
+  "jvm": { "memoryMb": 2048 },
+  "display": { "mode": "headless" },
+  "run": { "onlyTargetsWithAllMods": true },
+  "test": { "startupTimeoutSec": 900, "timeoutSec": 1200 }
+}
