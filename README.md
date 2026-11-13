@@ -62,6 +62,15 @@ java -jar cm-replay/target/cm-replay.jar verity-report/targets/1.20.1-fabric/att
 join endpoint, through [jsonproxy](https://github.com/prometheusreengineering/jsonproxy)). See the patch repo's
 `verity.json` for how its test clients are pointed at them.
 
+
+## Disclaimer
+
+This project is intended for educational purposes only. We are not responsible for any damage caused by this project.
+
+Assets belong to their respective owners. This project is not affiliated with Essential or ModCore.
+
+This project was made almost entirely with Claude Opus 5.5 on Medium/High effort.
+
 ## License
 
-GPL-3.0, like the patch.
+GPLv3 © Prometheus Reengineering
